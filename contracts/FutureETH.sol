@@ -5,7 +5,7 @@ contract FutureETH {
     uint constant DAY_IN_SECONDS = 86400;
     uint256 constant WEI = 1000000000000000000;
     uint256 futurePrice;
-    uint256 futureDays;
+    uint256 futureSeconds;
     uint256 startTime;
     address owner;
     address buyer;
@@ -13,14 +13,14 @@ contract FutureETH {
     bool futureStarted;
     bool futureCompleted;
 
-    mapping (address => uint) escrow;
+    mapping (address => uint) public escrow;
 
     event FundsReceived(address sender, uint256 _value); // funds received from the second person
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
     event FutureStartedEvent(); // when the futuresContract is started
     event FutureCompletedEvent(uint256 expectedPrice, uint256 actualPrice); // when the futures contract is completed
     event Liquidation(uint256 valueLost); // uh oh.
-    event RefundParticipants(uint256 ownerAmount, uint256 buyerAmount); // canceled futures contract
+    event RefundEth(address owner, uint ownerAmount, address buyer, uint buyerAmount); // canceled futures contract
 
     modifier refundable {
         require(!futureStarted || futureCompleted);
@@ -38,19 +38,25 @@ contract FutureETH {
     }
 
     modifier enoughTimePassed {
-        require(now-startTime >= futureDays*DAY_IN_SECONDS);
+        require(now-startTime >= futureSeconds);
         _;
     }
 
-    function FutureETH(uint256 futurePriceToSet, uint256 daysToWait) public payable {
+    function FutureETH(uint256 futurePriceToSet, uint256 secondsToWait) public payable {
         owner = msg.sender;
         escrow[msg.sender] = msg.value;
         userCount = 1;
         futurePrice = futurePriceToSet;
-        futureDays = daysToWait;
+        futureSeconds = secondsToWait;
     }
 
-    function receiveFunds() public payable {
+    // fallback function
+    function() public payable {
+        msg.sender.transfer(msg.value);
+        Transfer(this, msg.sender, msg.value);
+    }
+
+    function receiveFunds() public payable returns (uint newBalance) {
         require(!futureStarted);
         FundsReceived(msg.sender, msg.value);
         if (msg.sender == owner) {
@@ -63,6 +69,7 @@ contract FutureETH {
             // refund the person who sent the ether and is not a participant.
             msg.sender.transfer(msg.value);
             Transfer(this, msg.sender, msg.value);
+            return 0;
         }
 
         if (escrow[buyer] >= escrow[owner]) {
@@ -70,6 +77,8 @@ contract FutureETH {
             startTime = now;
             FutureStartedEvent();
         }
+
+        return escrow[msg.sender];
     }
 
     function processFuture(uint actualPrice) public fundingCompleted enoughTimePassed {
@@ -88,8 +97,7 @@ contract FutureETH {
             escrow[owner] += amountToSend;
             escrow[buyer] -= amountToSend;
             buyer.transfer(escrow[buyer]);
-            Transfer(this, buyer, escrow[buyer]);
-            Transfer(this, owner, address(this).balance);
+            Transfer(buyer, owner, amountToSend);
             selfdestruct(owner);
         }
         if (actualPrice < futurePrice) {
@@ -99,8 +107,7 @@ contract FutureETH {
             escrow[owner] -= amountToSend;
             escrow[buyer] += amountToSend;
             buyer.transfer(escrow[buyer]);
-            Transfer(this, buyer, escrow[buyer]);
-            Transfer(this, owner, address(this).balance);
+            Transfer(owner, buyer, amountToSend);
             selfdestruct(owner);
         }
     }
@@ -109,12 +116,44 @@ contract FutureETH {
         if (escrow[buyer] == 0) {
             buyer.transfer(escrow[buyer]);
             Transfer(this, buyer, escrow[buyer]);
-            RefundParticipants(escrow[owner], escrow[buyer]);
+            RefundEth(owner, escrow[owner], buyer, escrow[buyer]);
         } else {
-            RefundParticipants(escrow[owner], 0);
+            RefundEth(owner, escrow[owner], 0x0, 0);
         }
 
         Transfer(this, owner, address(this).balance);
         selfdestruct(owner);
+    }
+
+    function getSecondsLeft() public view returns (uint) {
+        if (now-startTime >= futureSeconds) {
+            return 0;
+        } else {
+            return startTime+(futureSeconds)-now;
+        }
+    }
+
+    function getSellerBalance() public view returns(uint) {
+        return escrow[owner];
+    }
+
+    function getBuyerBalance() public view returns (uint) {
+        return escrow[buyer];
+    }
+
+    function getFutureAmount() public view returns (uint) {
+        return escrow[buyer];
+    }
+
+    function getFuturesPrice() public view returns (uint) {
+        return futurePrice;
+    }
+
+    function getFuturesSeconds() public view returns (uint) {
+        return futureSeconds;
+    }
+
+    function getFutureStarted() public view returns (bool) {
+        return futureStarted;
     }
 }

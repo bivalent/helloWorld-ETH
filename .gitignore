@@ -1,3 +1,6 @@
 /node_modules/
-/build/
+build/
+build/contracts/*
 package-lock.json
+build/contracts/FutureETH.json
+build/contracts/Migrations.json

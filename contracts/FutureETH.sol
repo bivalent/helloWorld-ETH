@@ -9,19 +9,18 @@ contract FutureETH {
     address owner;
     address buyer;
     bool futureStarted;
-    bool futureCompleted;
 
     mapping (address => uint) public escrow;
 
     event FundsReceived(address sender, uint256 _value); // funds received from the second person
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
+    event Transfer(address _from, address _to, uint256 _value);
     event FutureStartedEvent(); // when the futuresContract is started
     event FutureCompletedEvent(uint256 expectedPrice, uint256 actualPrice); // when the futures contract is completed
     event Liquidation(uint256 valueLost); // uh oh.
     event RefundEth(address owner, uint ownerAmount, address buyer, uint buyerAmount); // canceled futures contract
 
     modifier refundable {
-        require(!futureStarted || futureCompleted);
+        require(!futureStarted);
         _;
     }
 

@@ -1,15 +1,13 @@
-pragma solidity ^0.4.20;
+pragma solidity ^0.4.23;
 
 
 contract FutureETH {
-    uint constant DAY_IN_SECONDS = 86400;
     uint256 constant WEI = 1000000000000000000;
     uint256 futurePrice;
     uint256 futureSeconds;
     uint256 startTime;
     address owner;
     address buyer;
-    uint8 userCount;
     bool futureStarted;
     bool futureCompleted;
 
@@ -42,10 +40,9 @@ contract FutureETH {
         _;
     }
 
-    function FutureETH(uint256 futurePriceToSet, uint256 secondsToWait) public payable {
+    constructor(uint256 futurePriceToSet, uint256 secondsToWait) public payable {
         owner = msg.sender;
         escrow[msg.sender] = msg.value;
-        userCount = 1;
         futurePrice = futurePriceToSet;
         futureSeconds = secondsToWait;
     }
@@ -53,42 +50,41 @@ contract FutureETH {
     // fallback function
     function() public payable {
         msg.sender.transfer(msg.value);
-        Transfer(this, msg.sender, msg.value);
+        emit Transfer(this, msg.sender, msg.value);
     }
 
     function receiveFunds() public payable returns (uint newBalance) {
         require(!futureStarted);
-        FundsReceived(msg.sender, msg.value);
+        emit FundsReceived(msg.sender, msg.value);
         if (msg.sender == owner) {
             escrow[owner] += msg.value;
-        } else if (userCount == 1) {
+        } else if (buyer == 0) {
             buyer = msg.sender;
             escrow[buyer] = msg.value;
-            userCount = 2;
         } else {
             // refund the person who sent the ether and is not a participant.
             msg.sender.transfer(msg.value);
-            Transfer(this, msg.sender, msg.value);
+            emit Transfer(this, msg.sender, msg.value);
             return 0;
         }
 
         if (escrow[buyer] >= escrow[owner]) {
             futureStarted = true;
             startTime = now;
-            FutureStartedEvent();
+            emit FutureStartedEvent();
         }
 
         return escrow[msg.sender];
     }
 
     function processFuture(uint actualPrice) public fundingCompleted enoughTimePassed {
-        FutureCompletedEvent(futurePrice, actualPrice);
+        emit FutureCompletedEvent(futurePrice, actualPrice);
         // Msg.value(newPrice-price) / newPrice = quantityOwed
         uint amountToSend = 0;
 
         // R - E - K - T
         if ((actualPrice*2) <= futurePrice) {
-            Liquidation(actualPrice*escrow[owner] / 1000000000000000000);
+            emit Liquidation(actualPrice*escrow[owner] / 1000000000000000000);
         }
 
         if (actualPrice > futurePrice) {
@@ -97,7 +93,7 @@ contract FutureETH {
             escrow[owner] += amountToSend;
             escrow[buyer] -= amountToSend;
             buyer.transfer(escrow[buyer]);
-            Transfer(buyer, owner, amountToSend);
+            emit Transfer(buyer, owner, amountToSend);
             selfdestruct(owner);
         }
         if (actualPrice < futurePrice) {
@@ -107,7 +103,7 @@ contract FutureETH {
             escrow[owner] -= amountToSend;
             escrow[buyer] += amountToSend;
             buyer.transfer(escrow[buyer]);
-            Transfer(owner, buyer, amountToSend);
+            emit Transfer(owner, buyer, amountToSend);
             selfdestruct(owner);
         }
     }
@@ -115,13 +111,13 @@ contract FutureETH {
     function refund() public onlyOwner refundable {
         if (escrow[buyer] == 0) {
             buyer.transfer(escrow[buyer]);
-            Transfer(this, buyer, escrow[buyer]);
-            RefundEth(owner, escrow[owner], buyer, escrow[buyer]);
+            emit Transfer(this, buyer, escrow[buyer]);
+            emit RefundEth(owner, escrow[owner], buyer, escrow[buyer]);
         } else {
-            RefundEth(owner, escrow[owner], 0x0, 0);
+            emit RefundEth(owner, escrow[owner], 0x0, 0);
         }
 
-        Transfer(this, owner, address(this).balance);
+        emit Transfer(this, owner, address(this).balance);
         selfdestruct(owner);
     }
 

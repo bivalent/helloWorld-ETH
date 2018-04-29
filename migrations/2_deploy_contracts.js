@@ -1,8 +1,7 @@
-var ConvertLib = artifacts.require("./ConvertLib.sol");
-var MetaCoin = artifacts.require("./MetaCoin.sol");
+var FutureETH = artifacts.require("FutureETH");
 
+var price = 600;
+var seconds = 1;
 module.exports = function(deployer) {
-  deployer.deploy(ConvertLib);
-  deployer.link(ConvertLib, MetaCoin);
-  deployer.deploy(MetaCoin);
+  deployer.deploy(FutureETH, price, seconds);
 };

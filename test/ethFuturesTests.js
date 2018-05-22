@@ -26,10 +26,12 @@ contract('FutureETH', function(accounts) {
 
 		return FutureETH.deployed(600, 1, {from: sellerAccount, value: 000000000000000000}).then(function(instance) {
 			meta = instance;
-		  	return meta.receiveFunds({from: sellerAccount, value:8000000000000000});
+		  	meta.receiveFunds({from: sellerAccount, value:8000000000000000});
+			return meta.getSellerBalance.call();
 		}).then(function(newSellerBalance) {
 			assert.equal(newSellerBalance.valueOf(), 8000000000000000, "The seller balance was not 8 ETH.");
-			return meta.receiveFunds({from: buyerAccount, value:400000000000000});
+			meta.receiveFunds({from: buyerAccount, value:400000000000000});
+			return meta.getBuyerBalance.call();
 		}).then(function(newBuyerBalance) {
 			assert.equal(newBuyerBalance.valueOf(), 400000000000000, "The buyer balance was not 4 ETH.");
 			return meta.getFutureStarted.call();
@@ -47,11 +49,12 @@ contract('FutureETH', function(accounts) {
 
 			for (var i = 0; i < result.logs.length; i++) {
 				var log = result.logs[i];
-
+				JSON.stringify(log);
+				
 				if (log.event == "RefundEth") {
 					// We found the event!
 					refundEventFound = true;
-					console.log("RefundEvent Found! Log: ", log.event);
+					console.log("RefundEvent Found! Log: ", JSON.stringify(log.event));
 					sellerAddress = log.event.args.owner;
 					buyerAddress = log.event.args.ownerAmount;
 					sellerAmount = log.event.args.buyer;
@@ -74,11 +77,15 @@ contract('FutureETH', function(accounts) {
 	  	.then(function(instance) {
 			meta = instance;
 			return meta.receiveFunds({from: sellerAccount, value:10000000000000000});
+		}).then(function(result) {
+			return meta.getSellerBalance.call();
 		}).then(function(newSellerBalance) {
-			assert.equal(sellerBalance.valueOf(), 10000000000000000, "The seller balance was not 10 ETH.");
+			assert.equal(newSellerBalance.valueOf(), 10000000000000000, "The seller balance was not 10 ETH.");
 			return meta.receiveFunds({from: buyerAccount, value:10000000000000000});
+		}).then(function(result) {
+			return meta.getBuyerBalance.call();
 		}).then(function(newBuyerBalance) {
-			assert.equal(buyerBalance.valueOf(), 10000000000000000, "The buyer balance was not 10 ETH.");
+			assert.equal(newBuyerBalance.valueOf(), 10000000000000000, "The buyer balance was not 10 ETH.");
 			return instance.getFutureStarted.call();
 		}).then(function(futureStarted) {
 			assert.equal(futureStarted.valueOf(), true, "The future was not considered started");
@@ -87,13 +94,13 @@ contract('FutureETH', function(accounts) {
 
   	it("given a new price of 1000, it should calculate the transfer correctly (2ETH) and send it to the accounts", function() {
 		var meta;
-
+		var futuresAmount = 10000000000000000;
 		return FutureETH.deployed(600, 1, {from: sellerAccount, value: 0}).then(function(instance) {
 			meta = instance;
-  			return meta.receiveFunds({from: sellerAccount, value:10000000000000000});
-		}).then(function(newSellerBalance) {
-			return meta.receiveFunds({from: buyerAccount, value:10000000000000000});
-		}).then(function(newBuyerBalance) {
+  			return meta.receiveFunds({from: sellerAccount, value: futuresAmount});
+		}).then(function(result) { // use the 'then' functions as alternative to asynch.
+			return meta.receiveFunds({from: buyerAccount, value: futuresAmount});
+		}).then(function(result) {
 			return meta.processFuture(1000);
     	}).then(function(result) {
 			// 2 eth transferred from buyer to seller.
@@ -111,9 +118,11 @@ contract('FutureETH', function(accounts) {
 					break;
 				}
 			}
+			// calculating right value:
+			;
 
-			assert.equal(amountTransferred.valueOf(), 20000000000000000, "The amount transferred was not 2 ETH.");
 			assert.equal(winningAddress.valueOf(), sellerAccount, "The winning address was not the sellers.");
+			assert.equal(amountTransferred.valueOf(), ((futuresAmount * (400)) / 1000), "The amount transferred was not 2 ETH.");
 		})
   	});
 });
